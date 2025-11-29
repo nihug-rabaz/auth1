@@ -64,14 +64,7 @@ class IDFProxy {
         console.log('Using proxy:', this.proxyUrl, 'for URL:', url);
         const { ProxyAgent, fetch: undiciFetch } = await import('undici');
         
-        const proxyAgent = new ProxyAgent(this.proxyUrl, {
-          requestTls: {
-            rejectUnauthorized: false
-          },
-          proxyTls: {
-            rejectUnauthorized: false
-          }
-        });
+        const proxyAgent = new ProxyAgent(this.proxyUrl);
         
         const fetchOptions: any = {
           ...options,
