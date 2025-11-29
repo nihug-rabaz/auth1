@@ -8,6 +8,11 @@ class IDFProxy {
   constructor(baseUrl: string = "https://my.idf.il", proxyUrl?: string) {
     this.baseUrl = baseUrl;
     this.proxyUrl = proxyUrl || process.env.PROXY_URL;
+    if (this.proxyUrl) {
+      console.log('Proxy configured:', this.proxyUrl);
+    } else {
+      console.warn('No proxy configured - requests will be direct');
+    }
     this.defaultHeaders = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
       'Accept': 'application/json, text/plain, */*',
@@ -56,6 +61,7 @@ class IDFProxy {
   private async makeRequest(url: string, options: RequestInit): Promise<Response> {
     if (this.proxyUrl) {
       try {
+        console.log('Using proxy:', this.proxyUrl, 'for URL:', url);
         const { ProxyAgent, fetch: undiciFetch } = await import('undici');
         const proxyAgent = new ProxyAgent(this.proxyUrl);
         
@@ -65,6 +71,7 @@ class IDFProxy {
         };
         
         const response = await undiciFetch(url, fetchOptions);
+        console.log('Proxy request successful, status:', response.status);
         
         const responseHeaders = new Headers();
         for (const [key, value] of Object.entries(response.headers)) {
@@ -85,9 +92,11 @@ class IDFProxy {
         return clonedResponse;
       } catch (error: any) {
         console.error('Proxy error, falling back to direct request:', error.message);
+        console.error('Error details:', error);
         return fetch(url, options);
       }
     }
+    console.log('No proxy configured, using direct request to:', url);
     return fetch(url, options);
   }
 
@@ -104,6 +113,7 @@ class IDFProxy {
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('IDF API error:', response.status, errorText);
       throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 

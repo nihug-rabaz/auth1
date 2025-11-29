@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [idNumber, setIdNumber] = useState('');
@@ -11,6 +11,14 @@ export default function Home() {
   const [sessionCookie, setSessionCookie] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [proxyStatus, setProxyStatus] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/proxy-status')
+      .then(res => res.json())
+      .then(data => setProxyStatus(data))
+      .catch(err => console.error('Failed to fetch proxy status:', err));
+  }, []);
 
   const handleGetUserInfo = async () => {
     if (!idNumber.trim()) {
@@ -145,12 +153,30 @@ export default function Home() {
       }}>
         <h1 style={{ 
           fontSize: '2rem', 
-          marginBottom: '2rem',
+          marginBottom: '1rem',
           color: '#333',
           textAlign: 'center'
         }}>
           IDF Proxy Service
         </h1>
+
+        {proxyStatus && (
+          <div style={{
+            marginBottom: '2rem',
+            padding: '1rem',
+            backgroundColor: proxyStatus.proxyConfigured ? '#f0fdf4' : '#fef2f2',
+            borderRadius: '6px',
+            border: `1px solid ${proxyStatus.proxyConfigured ? '#86efac' : '#fecaca'}`,
+            fontSize: '0.9rem'
+          }}>
+            <strong style={{ color: proxyStatus.proxyConfigured ? '#166534' : '#991b1b' }}>
+              Proxy Status: {proxyStatus.proxyConfigured ? '✓ Configured' : '✗ Not Configured'}
+            </strong>
+            <p style={{ margin: '0.5rem 0 0 0', color: proxyStatus.proxyConfigured ? '#166534' : '#991b1b' }}>
+              {proxyStatus.message}
+            </p>
+          </div>
+        )}
 
         <div style={{ marginBottom: '2rem' }}>
           <label style={{ 
