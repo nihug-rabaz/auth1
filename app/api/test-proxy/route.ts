@@ -21,12 +21,26 @@ export async function GET() {
     
     const data = await response.json();
     
+    const geoUrl = `https://ipapi.co/${data.ip}/json/`;
+    let geoData = null;
+    try {
+      const geoResponse = await (proxy as any).makeRequest(geoUrl, {
+        method: 'GET'
+      });
+      geoData = await geoResponse.json();
+    } catch (geoError) {
+      console.error('Failed to get geo data:', geoError);
+    }
+    
     return NextResponse.json({
       success: true,
       proxyUrl,
       testResponse: data,
+      geoData: geoData,
       status: response.status,
-      message: 'Proxy test successful'
+      message: geoData?.country_code === 'IL' 
+        ? 'Proxy is working and appears to be in Israel ✓' 
+        : `Proxy is working but location is ${geoData?.country_name || 'unknown'} (IP: ${data.ip})`
     });
   } catch (error: any) {
     return NextResponse.json({
