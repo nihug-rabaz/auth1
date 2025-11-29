@@ -77,7 +77,7 @@ class IDFProxy {
         
         const body = await response.arrayBuffer();
         const clonedResponse = new Response(body, {
-          status: response.statusCode,
+          status: response.status,
           statusText: response.statusText || '',
           headers: responseHeaders
         });
