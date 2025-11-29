@@ -63,13 +63,22 @@ class IDFProxy {
       try {
         console.log('Using proxy:', this.proxyUrl, 'for URL:', url);
         const { ProxyAgent, fetch: undiciFetch } = await import('undici');
-        const proxyAgent = new ProxyAgent(this.proxyUrl);
+        
+        const proxyAgent = new ProxyAgent(this.proxyUrl, {
+          requestTls: {
+            rejectUnauthorized: false
+          },
+          proxyTls: {
+            rejectUnauthorized: false
+          }
+        });
         
         const fetchOptions: any = {
           ...options,
           dispatcher: proxyAgent
         };
         
+        console.log('Making proxy request with options:', JSON.stringify(fetchOptions, null, 2));
         const response = await undiciFetch(url, fetchOptions);
         console.log('Proxy request successful, status:', response.status);
         
@@ -91,8 +100,9 @@ class IDFProxy {
         
         return clonedResponse;
       } catch (error: any) {
-        console.error('Proxy error, falling back to direct request:', error.message);
-        console.error('Error details:', error);
+        console.error('Proxy error:', error.message);
+        console.error('Error stack:', error.stack);
+        console.error('Falling back to direct request');
         return fetch(url, options);
       }
     }
