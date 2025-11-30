@@ -13,8 +13,12 @@ const MICROSOFT_CONFIG = {
 
 export default function MicrosoftAuth() {
   const [idNumber, setIdNumber] = useState('');
+  const [urlInput, setUrlInput] = useState('');
+  const [code, setCode] = useState<string | null>(null);
+  const [state, setState] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   const generateCodeVerifier = () => {
     const array = new Uint8Array(32);
@@ -59,6 +63,43 @@ export default function MicrosoftAuth() {
     return `${MICROSOFT_CONFIG.authorizationEndpoint}?${params.toString()}`;
   };
 
+  const extractCodeFromUrl = (url: string) => {
+    try {
+      const urlObj = new URL(url);
+      const hash = urlObj.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      
+      const authCode = params.get('code');
+      const authState = params.get('state');
+      const authError = params.get('error');
+      const errorDescription = params.get('error_description');
+
+      if (authError) {
+        setError(`${authError}: ${errorDescription || ''}`);
+        return false;
+      } else if (authCode) {
+        setCode(authCode);
+        setState(authState);
+        
+        const codeData = {
+          code: authCode,
+          state: authState,
+          timestamp: new Date().toISOString(),
+          url: url
+        };
+        
+        localStorage.setItem('microsoft_auth_code', JSON.stringify(codeData));
+        setSaved(true);
+        setError(null);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      setError('URL לא תקין');
+      return false;
+    }
+  };
+
   const handleConnect = async () => {
     if (!idNumber.trim()) {
       setError('מספר ת.ז. נדרש');
@@ -67,6 +108,9 @@ export default function MicrosoftAuth() {
 
     setLoading(true);
     setError(null);
+    setCode(null);
+    setState(null);
+    setSaved(false);
 
     try {
       const authUrl = await generateMicrosoftAuthUrl(idNumber.trim());
@@ -76,6 +120,42 @@ export default function MicrosoftAuth() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleExtractCode = () => {
+    if (!urlInput.trim()) {
+      setError('יש להדביק URL');
+      return;
+    }
+    extractCodeFromUrl(urlInput.trim());
+    setUrlInput('');
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('הועתק ללוח!');
+    });
+  };
+
+  const downloadCode = () => {
+    if (!code) return;
+    
+    const data = {
+      code: code,
+      state: state,
+      timestamp: new Date().toISOString(),
+      idNumber: idNumber
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `microsoft-auth-code-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -193,6 +273,222 @@ export default function MicrosoftAuth() {
           }}>
             UPN: <strong>{idNumber.trim()}@idf.il</strong>
           </div>
+        )}
+
+        {!code && (
+          <div style={{
+            marginTop: '2rem',
+            padding: '1.5rem',
+            backgroundColor: '#f0f9ff',
+            borderRadius: '6px',
+            border: '1px solid #bae6fd'
+          }}>
+            <h2 style={{
+              fontSize: '1.2rem',
+              fontWeight: '600',
+              color: '#0369a1',
+              marginBottom: '1rem'
+            }}>
+              אחרי ההתחברות ל-Microsoft:
+            </h2>
+            <p style={{
+              marginBottom: '1rem',
+              color: '#0369a1',
+              fontSize: '0.9rem'
+            }}>
+              תועבר ל-<code style={{ backgroundColor: '#e0f2fe', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>https://www.prat.idf.il/</code> עם הקוד ב-URL.
+              <br />
+              העתק את כל ה-URL מהשורת הכתובת והדבק כאן:
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <input
+                type="text"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleExtractCode();
+                  }
+                }}
+                placeholder="הדבק כאן את ה-URL שקיבלת אחרי ההתחברות"
+                style={{
+                  flex: 1,
+                  padding: '0.75rem',
+                  fontSize: '0.9rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <button
+                onClick={handleExtractCode}
+                disabled={!urlInput.trim()}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: '#0070f3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: urlInput.trim() ? 'pointer' : 'not-allowed',
+                  opacity: urlInput.trim() ? 1 : 0.6,
+                  fontWeight: '600',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                חלץ קוד
+              </button>
+            </div>
+          </div>
+        )}
+
+        {code && (
+          <>
+            {saved && (
+              <div style={{
+                marginTop: '2rem',
+                padding: '1rem',
+                backgroundColor: '#f0fdf4',
+                borderRadius: '6px',
+                border: '1px solid #10b981',
+                textAlign: 'center',
+                color: '#166534',
+                fontWeight: '600'
+              }}>
+                ✓ הקוד נשמר ב-localStorage
+              </div>
+            )}
+
+            <div style={{
+              marginTop: '2rem',
+              padding: '1.5rem',
+              backgroundColor: '#f0fdf4',
+              borderRadius: '6px',
+              border: '2px solid #10b981'
+            }}>
+              <div style={{
+                fontSize: '1.2rem',
+                fontWeight: '700',
+                color: '#10b981',
+                marginBottom: '1rem',
+                textAlign: 'center'
+              }}>
+                ✓ Authorization Code התקבל בהצלחה!
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '0.5rem',
+                  fontWeight: '600',
+                  color: '#555'
+                }}>
+                  Authorization Code:
+                </label>
+                <div style={{
+                  display: 'flex',
+                  gap: '0.5rem',
+                  marginBottom: '0.5rem'
+                }}>
+                  <textarea
+                    readOnly
+                    value={code}
+                    style={{
+                      flex: 1,
+                      padding: '0.75rem',
+                      fontSize: '0.9rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '6px',
+                      fontFamily: 'monospace',
+                      resize: 'vertical',
+                      minHeight: '100px'
+                    }}
+                  />
+                  <button
+                    onClick={() => copyToClipboard(code)}
+                    style={{
+                      padding: '0.75rem 1rem',
+                      backgroundColor: '#0070f3',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    העתק
+                  </button>
+                </div>
+              </div>
+
+              {state && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ 
+                    display: 'block', 
+                    marginBottom: '0.5rem',
+                    fontWeight: '600',
+                    color: '#555'
+                  }}>
+                    State:
+                  </label>
+                  <div style={{
+                    padding: '0.75rem',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    fontFamily: 'monospace',
+                    wordBreak: 'break-all'
+                  }}>
+                    {state}
+                  </div>
+                </div>
+              )}
+
+              <div style={{
+                display: 'flex',
+                gap: '1rem',
+                marginTop: '1.5rem'
+              }}>
+                <button
+                  onClick={downloadCode}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem 1.5rem',
+                    fontSize: '1rem',
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  הורד כקובץ JSON
+                </button>
+                <button
+                  onClick={() => {
+                    setCode(null);
+                    setState(null);
+                    setUrlInput('');
+                    setSaved(false);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem 1.5rem',
+                    fontSize: '1rem',
+                    backgroundColor: '#6b7280',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  התחלה מחדש
+                </button>
+              </div>
+            </div>
+          </>
         )}
 
         {error && (
