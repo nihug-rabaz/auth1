@@ -195,6 +195,30 @@ export default function Home() {
           </div>
         )}
 
+        <div style={{
+          marginBottom: '2rem',
+          padding: '0.75rem',
+          backgroundColor: '#f0f9ff',
+          borderRadius: '6px',
+          border: '1px solid #bae6fd',
+          fontSize: '0.9rem'
+        }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={useClientSide}
+              onChange={(e) => setUseClientSide(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            <span style={{ fontWeight: '600' }}>Use Client-Side Requests</span>
+          </label>
+          <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: '#0369a1' }}>
+            {useClientSide 
+              ? '✓ Requests will come directly from your browser (Israel IP) - No proxy needed!' 
+              : 'Requests will go through server (may need proxy if server is not in Israel)'}
+          </p>
+        </div>
+
         <div style={{ marginBottom: '2rem' }}>
           <label style={{ 
             display: 'block', 
