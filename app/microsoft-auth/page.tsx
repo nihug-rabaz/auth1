@@ -8,7 +8,8 @@ const MICROSOFT_CONFIG = {
   clientId: '7b202b0a-1a3c-4dc2-8432-a29ae04973d5',
   redirectUri: 'https://www.prat.idf.il/',
   scope: 'User.Read openid profile offline_access',
-  authorizationEndpoint: 'https://login.microsoftonline.com/78820852-55fa-450b-908d-45c0d911e76b/oauth2/v2.0/authorize'
+  authorizationEndpoint: 'https://login.microsoftonline.com/78820852-55fa-450b-908d-45c0d911e76b/oauth2/v2.0/authorize',
+  tokenEndpoint: 'https://login.microsoftonline.com/78820852-55fa-450b-908d-45c0d911e76b/oauth2/v2.0/token'
 };
 
 export default function MicrosoftAuth() {
@@ -16,7 +17,9 @@ export default function MicrosoftAuth() {
   const [urlInput, setUrlInput] = useState('');
   const [code, setCode] = useState<string | null>(null);
   const [state, setState] = useState<string | null>(null);
+  const [tokens, setTokens] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [exchanging, setExchanging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -91,6 +94,8 @@ export default function MicrosoftAuth() {
         localStorage.setItem('microsoft_auth_code', JSON.stringify(codeData));
         setSaved(true);
         setError(null);
+        
+        handleExchangeCodeForTokens(authCode);
         return true;
       }
       return false;
@@ -137,10 +142,67 @@ export default function MicrosoftAuth() {
     });
   };
 
+  const handleExchangeCodeForTokens = async (authCode: string) => {
+    setExchanging(true);
+    setError(null);
+
+    try {
+      const codeVerifier = sessionStorage.getItem('code_verifier');
+      if (!codeVerifier) {
+        throw new Error('Code verifier לא נמצא. נסה שוב מההתחלה.');
+      }
+
+      const params = new URLSearchParams({
+        client_id: MICROSOFT_CONFIG.clientId,
+        scope: MICROSOFT_CONFIG.scope,
+        code: authCode,
+        redirect_uri: MICROSOFT_CONFIG.redirectUri,
+        grant_type: 'authorization_code',
+        code_verifier: codeVerifier,
+        client_info: '1'
+      });
+
+      const response = await fetch(MICROSOFT_CONFIG.tokenEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': '*/*'
+        },
+        body: params.toString()
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`שגיאה בהחלפת קוד: ${response.status} - ${errorText}`);
+      }
+
+      const tokenData = await response.json();
+      setTokens(tokenData);
+      
+      const fullData = {
+        code: authCode,
+        state: state,
+        tokens: tokenData,
+        timestamp: new Date().toISOString(),
+        idNumber: idNumber
+      };
+      
+      localStorage.setItem('microsoft_auth_tokens', JSON.stringify(fullData));
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setExchanging(false);
+    }
+  };
+
   const downloadCode = () => {
-    if (!code) return;
-    
-    const data = {
+    const data = tokens ? {
+      code: code,
+      state: state,
+      tokens: tokens,
+      timestamp: new Date().toISOString(),
+      idNumber: idNumber
+    } : {
       code: code,
       state: state,
       timestamp: new Date().toISOString(),
@@ -151,7 +213,7 @@ export default function MicrosoftAuth() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `microsoft-auth-code-${Date.now()}.json`;
+    a.download = `microsoft-auth-${Date.now()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -469,6 +531,7 @@ export default function MicrosoftAuth() {
                   onClick={() => {
                     setCode(null);
                     setState(null);
+                    setTokens(null);
                     setUrlInput('');
                     setSaved(false);
                   }}
@@ -489,6 +552,186 @@ export default function MicrosoftAuth() {
               </div>
             </div>
           </>
+        )}
+
+        {tokens && (
+          <div style={{
+            marginTop: '2rem',
+            padding: '1.5rem',
+            backgroundColor: '#f0fdf4',
+            borderRadius: '6px',
+            border: '2px solid #10b981'
+          }}>
+            <div style={{
+              fontSize: '1.2rem',
+              fontWeight: '700',
+              color: '#10b981',
+              marginBottom: '1rem',
+              textAlign: 'center'
+            }}>
+              ✓ Tokens התקבלו בהצלחה!
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '0.5rem',
+                fontWeight: '600',
+                color: '#555'
+              }}>
+                Access Token:
+              </label>
+              <div style={{
+                display: 'flex',
+                gap: '0.5rem',
+                marginBottom: '0.5rem'
+              }}>
+                <textarea
+                  readOnly
+                  value={tokens.access_token}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    fontSize: '0.85rem',
+                    border: '1px solid #ddd',
+                    borderRadius: '6px',
+                    fontFamily: 'monospace',
+                    resize: 'vertical',
+                    minHeight: '80px'
+                  }}
+                />
+                <button
+                  onClick={() => copyToClipboard(tokens.access_token)}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    backgroundColor: '#0070f3',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  העתק
+                </button>
+              </div>
+            </div>
+
+            {tokens.refresh_token && (
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '0.5rem',
+                  fontWeight: '600',
+                  color: '#555'
+                }}>
+                  Refresh Token:
+                </label>
+                <div style={{
+                  display: 'flex',
+                  gap: '0.5rem',
+                  marginBottom: '0.5rem'
+                }}>
+                  <textarea
+                    readOnly
+                    value={tokens.refresh_token}
+                    style={{
+                      flex: 1,
+                      padding: '0.75rem',
+                      fontSize: '0.85rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '6px',
+                      fontFamily: 'monospace',
+                      resize: 'vertical',
+                      minHeight: '80px'
+                    }}
+                  />
+                  <button
+                    onClick={() => copyToClipboard(tokens.refresh_token)}
+                    style={{
+                      padding: '0.75rem 1rem',
+                      backgroundColor: '#0070f3',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    העתק
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {tokens.id_token && (
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '0.5rem',
+                  fontWeight: '600',
+                  color: '#555'
+                }}>
+                  ID Token:
+                </label>
+                <div style={{
+                  display: 'flex',
+                  gap: '0.5rem',
+                  marginBottom: '0.5rem'
+                }}>
+                  <textarea
+                    readOnly
+                    value={tokens.id_token}
+                    style={{
+                      flex: 1,
+                      padding: '0.75rem',
+                      fontSize: '0.85rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '6px',
+                      fontFamily: 'monospace',
+                      resize: 'vertical',
+                      minHeight: '80px'
+                    }}
+                  />
+                  <button
+                    onClick={() => copyToClipboard(tokens.id_token)}
+                    style={{
+                      padding: '0.75rem 1rem',
+                      backgroundColor: '#0070f3',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    העתק
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div style={{
+              padding: '1rem',
+              backgroundColor: '#f9fafb',
+              borderRadius: '6px',
+              marginTop: '1rem',
+              fontSize: '0.9rem'
+            }}>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>Expires In:</strong> {tokens.expires_in} שניות
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>Token Type:</strong> {tokens.token_type}
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>Scope:</strong> {tokens.scope}
+              </div>
+            </div>
+          </div>
         )}
 
         {error && (
