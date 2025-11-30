@@ -109,12 +109,26 @@ export default function MicrosoftCallback() {
 
         <h1 style={{ 
           fontSize: '2rem', 
-          marginBottom: '2rem',
+          marginBottom: '1rem',
           color: '#333',
           textAlign: 'center'
         }}>
           Microsoft Authorization Code
         </h1>
+
+        <div style={{
+          marginBottom: '2rem',
+          padding: '1rem',
+          backgroundColor: '#fef3c7',
+          borderRadius: '6px',
+          border: '1px solid #fbbf24',
+          fontSize: '0.9rem',
+          color: '#92400e'
+        }}>
+          <strong>הוראות:</strong> אחרי ההתחברות ל-Microsoft, תועבר ל-<code>https://www.prat.idf.il/</code> עם הקוד ב-URL.
+          <br />
+          העתק את כל ה-URL מהשורת הכתובת והדבק כאן כדי לחלץ את הקוד.
+        </div>
 
         {error && (
           <div style={{
