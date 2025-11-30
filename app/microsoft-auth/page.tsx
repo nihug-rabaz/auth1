@@ -201,6 +201,19 @@ export default function MicrosoftAuth() {
     }
   };
 
+  const decodeJWT = (token: string) => {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map((c) => {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  };
+
   const handleFetchUserData = async (idToken: string) => {
     setFetchingUserData(true);
     setError(null);
@@ -209,35 +222,83 @@ export default function MicrosoftAuth() {
       const savedTokens = JSON.parse(localStorage.getItem('microsoft_auth_tokens') || '{}');
       const tokens = savedTokens.tokens || {};
       
-      if (!tokens.id_token) {
-        throw new Error('id_token לא נמצא');
+      if (!tokens.id_token && !tokens.access_token) {
+        throw new Error('לא נמצאו tokens');
       }
 
-      const response = await fetch('/api/microsoft/user-data', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          token: tokens.id_token
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`שגיאה בקבלת נתוני משתמש: ${response.status} - ${errorData.error || 'Unknown error'}`);
+      const tokensToTry = [];
+      
+      if (tokens.id_token) {
+        const idTokenData = decodeJWT(tokens.id_token);
+        if (idTokenData) {
+          const exp = idTokenData.exp * 1000;
+          const now = Date.now();
+          if (exp > now) {
+            tokensToTry.push({ token: tokens.id_token, type: 'id_token', exp: exp, now: now });
+          } else {
+            console.log('id_token expired:', { exp, now, expired: exp <= now });
+          }
+        }
       }
 
-      const data = await response.json();
-      setUserData(data);
-      
-      const fullData = {
-        ...savedTokens,
-        userData: data,
-        timestamp: new Date().toISOString()
-      };
-      
-      localStorage.setItem('microsoft_auth_complete', JSON.stringify(fullData));
+      if (tokens.access_token) {
+        const accessTokenData = decodeJWT(tokens.access_token);
+        if (accessTokenData) {
+          const exp = accessTokenData.exp * 1000;
+          const now = Date.now();
+          if (exp > now) {
+            tokensToTry.push({ token: tokens.access_token, type: 'access_token', exp: exp, now: now });
+          } else {
+            console.log('access_token expired:', { exp, now, expired: exp <= now });
+          }
+        }
+      }
+
+      if (tokensToTry.length === 0) {
+        throw new Error('כל ה-tokens פגי תוקף');
+      }
+
+      let lastError: any = null;
+
+      for (const { token, type } of tokensToTry) {
+        try {
+          console.log(`מנסה עם ${type}...`);
+          const response = await fetch('/api/microsoft/user-data', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json'
+            },
+            body: JSON.stringify({
+              token: token
+            })
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            setUserData(data);
+            
+            const fullData = {
+              ...savedTokens,
+              userData: data,
+              timestamp: new Date().toISOString()
+            };
+            
+            localStorage.setItem('microsoft_auth_complete', JSON.stringify(fullData));
+            return;
+          } else {
+            const errorData = await response.json();
+            lastError = new Error(`שגיאה בקבלת נתוני משתמש עם ${type}: ${response.status} - ${errorData.error || 'Unknown error'}`);
+            console.log(`נכשל עם ${type}, מנסה הבא...`);
+          }
+        } catch (err: any) {
+          lastError = err;
+          console.log(`שגיאה עם ${type}:`, err.message);
+        }
+      }
+
+      if (lastError) {
+        throw lastError;
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
