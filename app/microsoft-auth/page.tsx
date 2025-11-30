@@ -190,10 +190,60 @@ export default function MicrosoftAuth() {
       };
       
       localStorage.setItem('microsoft_auth_tokens', JSON.stringify(fullData));
+      
+      if (tokenData.id_token) {
+        await handleFetchUserData(tokenData.id_token);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
       setExchanging(false);
+    }
+  };
+
+  const handleFetchUserData = async (idToken: string) => {
+    setFetchingUserData(true);
+    setError(null);
+
+    try {
+      const response = await fetch('https://home.idf.il/api/auth', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json, text/plain, */*',
+          'authorization': `Bearer ${idToken}`,
+          'content-type': 'application/json',
+          'origin': 'https://www.home.idf.il',
+          'referer': 'https://www.home.idf.il/',
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36'
+        },
+        body: JSON.stringify({
+          fetchUserData: true,
+          isCivil: false
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`שגיאה בקבלת נתוני משתמש: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      setUserData(data);
+      
+      const fullData = {
+        code: code,
+        state: state,
+        tokens: tokens,
+        userData: data,
+        timestamp: new Date().toISOString(),
+        idNumber: idNumber
+      };
+      
+      localStorage.setItem('microsoft_auth_complete', JSON.stringify(fullData));
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setFetchingUserData(false);
     }
   };
 
