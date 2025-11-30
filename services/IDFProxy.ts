@@ -58,56 +58,82 @@ class IDFProxy {
     return cookies.join('; ');
   }
 
-  private async makeRequest(url: string, options: RequestInit): Promise<Response> {
+  private async makeRequest(url: string, options: RequestInit, retries: number = 2): Promise<Response> {
     if (this.proxyUrl) {
-      try {
-        console.log('Using proxy:', this.proxyUrl, 'for URL:', url);
-        
-        const proxyUrlLower = this.proxyUrl.toLowerCase();
-        let proxyAgent: any;
-        
-        if (proxyUrlLower.startsWith('socks5://') || proxyUrlLower.startsWith('socks4://')) {
-          const { SocksProxyAgent } = await import('socks-proxy-agent');
-          proxyAgent = new SocksProxyAgent(this.proxyUrl);
-        } else {
-          const { ProxyAgent } = await import('undici');
-          proxyAgent = new ProxyAgent(this.proxyUrl);
-        }
-        
-        const { fetch: undiciFetch } = await import('undici');
-        
-        const fetchOptions: any = {
-          ...options,
-          dispatcher: proxyAgent
-        };
-        
-        console.log('Making proxy request with options:', JSON.stringify(fetchOptions, null, 2));
-        const response = await undiciFetch(url, fetchOptions);
-        console.log('Proxy request successful, status:', response.status);
-        
-        const responseHeaders = new Headers();
-        for (const [key, value] of Object.entries(response.headers)) {
-          if (Array.isArray(value)) {
-            value.forEach(v => responseHeaders.append(key, v));
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          if (attempt > 0) {
+            console.log(`Retry attempt ${attempt} for proxy request`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          }
+          
+          console.log('Using proxy:', this.proxyUrl, 'for URL:', url);
+          
+          const proxyUrlLower = this.proxyUrl.toLowerCase();
+          let proxyAgent: any;
+          
+          if (proxyUrlLower.startsWith('socks5://') || proxyUrlLower.startsWith('socks4://')) {
+            const { SocksProxyAgent } = await import('socks-proxy-agent');
+            proxyAgent = new SocksProxyAgent(this.proxyUrl);
           } else {
-            responseHeaders.set(key, value);
+            const { ProxyAgent } = await import('undici');
+            proxyAgent = new ProxyAgent(this.proxyUrl);
+          }
+          
+          const { fetch: undiciFetch } = await import('undici');
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000);
+          
+          const fetchOptions: any = {
+            ...options,
+            dispatcher: proxyAgent,
+            signal: controller.signal
+          };
+          
+          try {
+            const response = await undiciFetch(url, fetchOptions);
+            clearTimeout(timeoutId);
+            console.log('Proxy request successful, status:', response.status);
+            
+            if (response.status >= 500 && attempt < retries) {
+              console.log(`Server error ${response.status}, retrying...`);
+              continue;
+            }
+            
+            const responseHeaders = new Headers();
+            for (const [key, value] of Object.entries(response.headers)) {
+              if (Array.isArray(value)) {
+                value.forEach(v => responseHeaders.append(key, v));
+              } else {
+                responseHeaders.set(key, value);
+              }
+            }
+            
+            const body = await response.arrayBuffer();
+            const clonedResponse = new Response(body, {
+              status: response.status,
+              statusText: response.statusText || '',
+              headers: responseHeaders
+            });
+            
+            return clonedResponse;
+          } catch (fetchError: any) {
+            clearTimeout(timeoutId);
+            throw fetchError;
+          }
+        } catch (error: any) {
+          console.error(`Proxy error (attempt ${attempt + 1}/${retries + 1}):`, error.message);
+          
+          if (attempt === retries) {
+            console.error('All proxy attempts failed, falling back to direct request');
+            break;
           }
         }
-        
-        const body = await response.arrayBuffer();
-        const clonedResponse = new Response(body, {
-          status: response.status,
-          statusText: response.statusText || '',
-          headers: responseHeaders
-        });
-        
-        return clonedResponse;
-      } catch (error: any) {
-        console.error('Proxy error:', error.message);
-        console.error('Error stack:', error.stack);
-        console.error('Falling back to direct request');
-        return fetch(url, options);
       }
+      
+      console.log('Falling back to direct request (no proxy)');
+      return fetch(url, options);
     }
     console.log('No proxy configured, using direct request to:', url);
     return fetch(url, options);
