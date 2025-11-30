@@ -18,8 +18,10 @@ export default function MicrosoftAuth() {
   const [code, setCode] = useState<string | null>(null);
   const [state, setState] = useState<string | null>(null);
   const [tokens, setTokens] = useState<any>(null);
+  const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [exchanging, setExchanging] = useState(false);
+  const [fetchingUserData, setFetchingUserData] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -730,6 +732,129 @@ export default function MicrosoftAuth() {
               <div style={{ marginBottom: '0.5rem' }}>
                 <strong>Scope:</strong> {tokens.scope}
               </div>
+            </div>
+          </div>
+        )}
+
+        {fetchingUserData && (
+          <div style={{
+            marginTop: '2rem',
+            padding: '1.5rem',
+            backgroundColor: '#fef3c7',
+            borderRadius: '6px',
+            border: '1px solid #fbbf24',
+            textAlign: 'center',
+            color: '#92400e',
+            fontWeight: '600'
+          }}>
+            ⏳ מביא נתוני משתמש...
+          </div>
+        )}
+
+        {userData && (
+          <div style={{
+            marginTop: '2rem',
+            padding: '1.5rem',
+            backgroundColor: '#f0fdf4',
+            borderRadius: '6px',
+            border: '2px solid #10b981'
+          }}>
+            <div style={{
+              fontSize: '1.2rem',
+              fontWeight: '700',
+              color: '#10b981',
+              marginBottom: '1rem',
+              textAlign: 'center'
+            }}>
+              ✓ נתוני משתמש התקבלו בהצלחה!
+            </div>
+
+            {userData.userData && (
+              <div style={{
+                padding: '1rem',
+                backgroundColor: 'white',
+                borderRadius: '6px',
+                marginBottom: '1rem'
+              }}>
+                <h3 style={{
+                  fontSize: '1.1rem',
+                  fontWeight: '600',
+                  color: '#333',
+                  marginBottom: '1rem'
+                }}>
+                  פרטי משתמש:
+                </h3>
+                <div style={{
+                  display: 'grid',
+                  gap: '0.75rem',
+                  fontSize: '0.95rem'
+                }}>
+                  <div>
+                    <strong>ת.ז.:</strong> {userData.userData.personalId}
+                  </div>
+                  <div>
+                    <strong>שם פרטי:</strong> {userData.userData.firstName}
+                  </div>
+                  <div>
+                    <strong>שם משפחה:</strong> {userData.userData.lastName}
+                  </div>
+                  {userData.userData.email && (
+                    <div>
+                      <strong>אימייל:</strong> {userData.userData.email}
+                    </div>
+                  )}
+                  <div>
+                    <strong>סוג שירות:</strong> {userData.userData.serviceType}
+                  </div>
+                  <div>
+                    <strong>Analytics ID:</strong> {userData.userData.analyticsId}
+                  </div>
+                  {userData.userData.roles && userData.userData.roles.length > 0 && (
+                    <div>
+                      <strong>תפקידים:</strong> {userData.userData.roles.join(', ')}
+                    </div>
+                  )}
+                  {userData.userData.favorites && userData.userData.favorites.length > 0 && (
+                    <div>
+                      <strong>מועדפים:</strong> {userData.userData.favorites.length} פריטים
+                    </div>
+                  )}
+                  {userData.userData.searchHistory && userData.userData.searchHistory.length > 0 && (
+                    <div>
+                      <strong>היסטוריית חיפוש:</strong>
+                      <ul style={{ marginTop: '0.5rem', paddingRight: '1.5rem' }}>
+                        {userData.userData.searchHistory.map((item: string, index: number) => (
+                          <li key={index}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div style={{
+              padding: '1rem',
+              backgroundColor: '#f9fafb',
+              borderRadius: '6px',
+              marginTop: '1rem'
+            }}>
+              <button
+                onClick={() => copyToClipboard(JSON.stringify(userData, null, 2))}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 1.5rem',
+                  fontSize: '1rem',
+                  backgroundColor: '#0070f3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                העתק נתוני משתמש
+              </button>
             </div>
           </div>
         )}
