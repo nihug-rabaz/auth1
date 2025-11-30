@@ -6,6 +6,7 @@ import Link from 'next/link';
 const MICROSOFT_CONFIG = {
   tenantId: '78820852-55fa-450b-908d-45c0d911e76b',
   clientId: '7b202b0a-1a3c-4dc2-8432-a29ae04973d5',
+  homeClientId: '2d82cc91-ca5a-45bb-9a8d-4d33c6cb7cc5',
   redirectUri: 'https://www.prat.idf.il/',
   scope: 'User.Read openid profile offline_access',
   authorizationEndpoint: 'https://login.microsoftonline.com/78820852-55fa-450b-908d-45c0d911e76b/oauth2/v2.0/authorize',
@@ -233,11 +234,22 @@ export default function MicrosoftAuth() {
         if (idTokenData) {
           const exp = idTokenData.exp * 1000;
           const now = Date.now();
+          console.log('id_token data:', {
+            aud: idTokenData.aud,
+            iss: idTokenData.iss,
+            exp: new Date(exp).toISOString(),
+            now: new Date(now).toISOString(),
+            expired: exp <= now,
+            preferred_username: idTokenData.preferred_username,
+            oid: idTokenData.oid
+          });
           if (exp > now) {
             tokensToTry.push({ token: tokens.id_token, type: 'id_token', exp: exp, now: now });
           } else {
             console.log('id_token expired:', { exp, now, expired: exp <= now });
           }
+        } else {
+          console.log('Failed to decode id_token');
         }
       }
 
@@ -246,11 +258,22 @@ export default function MicrosoftAuth() {
         if (accessTokenData) {
           const exp = accessTokenData.exp * 1000;
           const now = Date.now();
+          console.log('access_token data:', {
+            aud: accessTokenData.aud,
+            iss: accessTokenData.iss,
+            exp: new Date(exp).toISOString(),
+            now: new Date(now).toISOString(),
+            expired: exp <= now,
+            appid: accessTokenData.appid,
+            oid: accessTokenData.oid
+          });
           if (exp > now) {
             tokensToTry.push({ token: tokens.access_token, type: 'access_token', exp: exp, now: now });
           } else {
             console.log('access_token expired:', { exp, now, expired: exp <= now });
           }
+        } else {
+          console.log('Failed to decode access_token');
         }
       }
 
