@@ -8,10 +8,12 @@ export default function MicrosoftCallback() {
   const [state, setState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const hash = window.location.hash.substring(1);
+  const extractCodeFromUrl = (url: string) => {
+    try {
+      const urlObj = new URL(url);
+      const hash = urlObj.hash.substring(1);
       const params = new URLSearchParams(hash);
       
       const authCode = params.get('code');
@@ -21,6 +23,7 @@ export default function MicrosoftCallback() {
 
       if (authError) {
         setError(`${authError}: ${errorDescription || ''}`);
+        return false;
       } else if (authCode) {
         setCode(authCode);
         setState(authState);
@@ -29,12 +32,23 @@ export default function MicrosoftCallback() {
           code: authCode,
           state: authState,
           timestamp: new Date().toISOString(),
-          url: window.location.href
+          url: url
         };
         
         localStorage.setItem('microsoft_auth_code', JSON.stringify(codeData));
         setSaved(true);
+        return true;
       }
+      return false;
+    } catch (err) {
+      setError('URL לא תקין');
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      extractCodeFromUrl(window.location.href);
     }
   }, []);
 
@@ -286,13 +300,68 @@ export default function MicrosoftCallback() {
         )}
 
         {!code && !error && (
-          <div style={{
-            padding: '1.5rem',
-            textAlign: 'center',
-            color: '#6b7280'
-          }}>
-            ממתין לקוד...
-          </div>
+          <>
+            <div style={{
+              padding: '1.5rem',
+              textAlign: 'center',
+              color: '#6b7280',
+              marginBottom: '2rem'
+            }}>
+              ממתין לקוד... או הדבק URL עם הקוד
+            </div>
+
+            <div style={{
+              padding: '1.5rem',
+              backgroundColor: '#f9fafb',
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '0.5rem',
+                fontWeight: '600',
+                color: '#555'
+              }}>
+                הדבק URL עם Authorization Code:
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  placeholder="הדבק כאן את ה-URL שקיבלת"
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    fontSize: '0.9rem',
+                    border: '1px solid #ddd',
+                    borderRadius: '6px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    if (urlInput.trim()) {
+                      extractCodeFromUrl(urlInput.trim());
+                      setUrlInput('');
+                    }
+                  }}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    backgroundColor: '#0070f3',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  חלץ קוד
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>
