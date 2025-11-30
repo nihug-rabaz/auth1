@@ -209,56 +209,35 @@ export default function MicrosoftAuth() {
       const savedTokens = JSON.parse(localStorage.getItem('microsoft_auth_tokens') || '{}');
       const tokens = savedTokens.tokens || {};
       
-      if (!tokens.access_token && !tokens.id_token) {
-        throw new Error('לא נמצאו tokens');
+      if (!tokens.id_token) {
+        throw new Error('id_token לא נמצא');
       }
 
-      const tokensToTry = [
-        { token: tokens.id_token, type: 'id_token' },
-        { token: tokens.access_token, type: 'access_token' }
-      ].filter(t => t.token);
+      const response = await fetch('/api/microsoft/user-data', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          token: tokens.id_token
+        })
+      });
 
-      let lastError: any = null;
-
-      for (const { token, type } of tokensToTry) {
-        try {
-          console.log(`מנסה עם ${type}...`);
-          const response = await fetch('/api/microsoft/user-data', {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json'
-            },
-            body: JSON.stringify({
-              token: token
-            })
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            setUserData(data);
-            
-            const fullData = {
-              ...savedTokens,
-              userData: data,
-              timestamp: new Date().toISOString()
-            };
-            
-            localStorage.setItem('microsoft_auth_complete', JSON.stringify(fullData));
-            return;
-          } else {
-            const errorData = await response.json();
-            lastError = new Error(`שגיאה בקבלת נתוני משתמש עם ${type}: ${response.status} - ${errorData.error || 'Unknown error'}`);
-            console.log(`נכשל עם ${type}, מנסה הבא...`);
-          }
-        } catch (err: any) {
-          lastError = err;
-          console.log(`שגיאה עם ${type}:`, err.message);
-        }
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`שגיאה בקבלת נתוני משתמש: ${response.status} - ${errorData.error || 'Unknown error'}`);
       }
 
-      if (lastError) {
-        throw lastError;
-      }
+      const data = await response.json();
+      setUserData(data);
+      
+      const fullData = {
+        ...savedTokens,
+        userData: data,
+        timestamp: new Date().toISOString()
+      };
+      
+      localStorage.setItem('microsoft_auth_complete', JSON.stringify(fullData));
     } catch (err: any) {
       setError(err.message);
     } finally {
