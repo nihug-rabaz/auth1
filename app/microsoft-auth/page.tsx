@@ -214,8 +214,8 @@ export default function MicrosoftAuth() {
       }
 
       const tokensToTry = [
-        { token: tokens.access_token, type: 'access_token' },
-        { token: tokens.id_token, type: 'id_token' }
+        { token: tokens.id_token, type: 'id_token' },
+        { token: tokens.access_token, type: 'access_token' }
       ].filter(t => t.token);
 
       let lastError: any = null;
