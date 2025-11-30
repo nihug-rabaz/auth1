@@ -16,8 +16,31 @@ export default function MicrosoftAuth() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const generateMicrosoftAuthUrl = (idNumber: string) => {
+  const generateCodeVerifier = () => {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return btoa(String.fromCharCode(...array))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+  };
+
+  const generateCodeChallenge = async (verifier: string) => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(verifier);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return btoa(String.fromCharCode(...new Uint8Array(digest)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+  };
+
+  const generateMicrosoftAuthUrl = async (idNumber: string) => {
     const upn = `${idNumber}@idf.il`;
+    const codeVerifier = generateCodeVerifier();
+    const codeChallenge = await generateCodeChallenge(codeVerifier);
+    
+    sessionStorage.setItem('code_verifier', codeVerifier);
     
     const params = new URLSearchParams({
       client_id: MICROSOFT_CONFIG.clientId,
@@ -28,21 +51,31 @@ export default function MicrosoftAuth() {
       login_hint: upn,
       'X-AnchorMailbox': `UPN:${upn}`,
       nonce: crypto.randomUUID(),
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
       state: btoa(JSON.stringify({ id: crypto.randomUUID(), meta: { interactionType: 'popup' } }))
     });
 
     return `${MICROSOFT_CONFIG.authorizationEndpoint}?${params.toString()}`;
   };
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     if (!idNumber.trim()) {
       setError('מספר ת.ז. נדרש');
       return;
     }
 
+    setLoading(true);
     setError(null);
-    const authUrl = generateMicrosoftAuthUrl(idNumber.trim());
-    window.open(authUrl, '_blank', 'width=600,height=700');
+
+    try {
+      const authUrl = await generateMicrosoftAuthUrl(idNumber.trim());
+      window.open(authUrl, '_blank', 'width=600,height=700');
+    } catch (err: any) {
+      setError('שגיאה ביצירת קישור אימות: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
