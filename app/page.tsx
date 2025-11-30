@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import IDFClient from '@/lib/idfClient';
 
 export default function Home() {
   const [idNumber, setIdNumber] = useState('');
@@ -12,6 +13,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [proxyStatus, setProxyStatus] = useState<any>(null);
+  const [useClientSide, setUseClientSide] = useState<boolean>(true);
 
   useEffect(() => {
     fetch('/api/proxy-status')
@@ -33,23 +35,32 @@ export default function Home() {
     setSessionCookie('');
 
     try {
-      const response = await fetch('/api/idf/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ idNumber }),
-      });
+      if (useClientSide) {
+        const client = new IDFClient();
+        const data = await client.getUserInfo(idNumber);
+        setUserInfo(data);
+        if (data.sessionCookie) {
+          setSessionCookie(data.sessionCookie);
+        }
+      } else {
+        const response = await fetch('/api/idf/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ idNumber }),
+        });
 
-      const data = await response.json();
+        const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to get user info');
-      }
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to get user info');
+        }
 
-      setUserInfo(data);
-      if (data.sessionCookie) {
-        setSessionCookie(data.sessionCookie);
+        setUserInfo(data);
+        if (data.sessionCookie) {
+          setSessionCookie(data.sessionCookie);
+        }
       }
     } catch (err: any) {
       setError(err.message);
@@ -110,25 +121,31 @@ export default function Home() {
     setValidationResult(null);
 
     try {
-      const response = await fetch('/api/idf/validate-code', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          idNumber,
-          code,
-          sessionCookie
-        }),
-      });
+      if (useClientSide) {
+        const client = new IDFClient();
+        const data = await client.validateCode(idNumber, code, sessionCookie);
+        setValidationResult(data);
+      } else {
+        const response = await fetch('/api/idf/validate-code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            idNumber,
+            code,
+            sessionCookie
+          }),
+        });
 
-      const data = await response.json();
+        const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to validate code');
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to validate code');
+        }
+
+        setValidationResult(data);
       }
-
-      setValidationResult(data);
     } catch (err: any) {
       setError(err.message);
     } finally {
