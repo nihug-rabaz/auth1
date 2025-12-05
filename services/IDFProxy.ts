@@ -162,13 +162,13 @@ class IDFProxy {
               }
               
               if (rawHeaders instanceof Headers) {
-                for (const [key, value] of rawHeaders.entries()) {
+                Array.from(rawHeaders.entries()).forEach(([key, value]) => {
                   if (key.toLowerCase() === 'set-cookie') {
                     responseHeaders.append('set-cookie', value);
                   } else {
                     responseHeaders.set(key, value);
                   }
-                }
+                });
               }
             }
             
