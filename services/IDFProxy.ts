@@ -20,8 +20,8 @@ class IDFProxy {
       'sec-ch-ua': '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
       'sec-ch-ua-mobile': '?0',
       'sec-ch-ua-platform': '"Windows"',
-      'Referer': 'https://rabaz.tempurl.co.il/',
-      'origin': 'https://rabaz.tempurl.co.il/'
+      'Referer': 'https://my.idf.il/',
+      'origin': 'https://my.idf.il'
     };
   }
 
@@ -198,20 +198,30 @@ class IDFProxy {
       }
       
       console.log('Falling back to direct request (no proxy)');
-      return fetch(url, options);
+      const directResponse = await fetch(url, options);
+      console.log('Direct response headers keys:', Array.from(directResponse.headers.keys()));
+      console.log('Direct response set-cookie:', directResponse.headers.get('set-cookie'));
+      console.log('Direct response getSetCookie:', directResponse.headers.getSetCookie ? directResponse.headers.getSetCookie() : 'not available');
+      return directResponse;
     }
     console.log('No proxy configured, using direct request to:', url);
-    return fetch(url, options);
+    const directResponse = await fetch(url, options);
+    console.log('Direct response headers keys:', Array.from(directResponse.headers.keys()));
+    console.log('Direct response set-cookie:', directResponse.headers.get('set-cookie'));
+    console.log('Direct response getSetCookie:', directResponse.headers.getSetCookie ? directResponse.headers.getSetCookie() : 'not available');
+    return directResponse;
   }
 
   async getUserInfo(idNumber: string): Promise<{ data: any; cookies: string }> {
-    const url = `${this.baseUrl}/api/users/`;
+    const url = `${this.baseUrl}/api/idf/users`;
     const payload = { idNumber };
-    const headers = this.mergeHeaders();
 
-    const response = await this.makeRequest(url, {
+    console.log('Sending direct request to:', url);
+    const response = await fetch(url, {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(payload)
     });
 
@@ -226,18 +236,46 @@ class IDFProxy {
       throw new Error(`HTTP error! status: ${response.status}, message: ${errorText.substring(0, 200)}`);
     }
 
+    console.log('=== RESPONSE HEADERS DEBUG ===');
+    console.log('Response status:', response.status);
     console.log('Response headers keys:', Array.from(response.headers.keys()));
-    console.log('set-cookie header:', response.headers.get('set-cookie'));
-    console.log('getSetCookie:', response.headers.getSetCookie ? response.headers.getSetCookie() : 'not available');
+    console.log('All headers entries:');
+    Array.from(response.headers.entries()).forEach(([key, value]) => {
+      console.log(`  ${key}: ${value}`);
+    });
+    console.log('set-cookie header (get):', response.headers.get('set-cookie'));
+    console.log('getSetCookie method exists:', typeof response.headers.getSetCookie === 'function');
+    if (response.headers.getSetCookie) {
+      console.log('getSetCookie result:', response.headers.getSetCookie());
+    }
+    console.log('================================');
     
-    const cookies = this.extractCookies(response);
+    let cookies = this.extractCookies(response);
     console.log('Extracted cookies:', cookies);
+    console.log('Cookies length:', cookies.length);
+    
+    const responseText = await response.text();
+    console.log('=== RESPONSE BODY ===');
+    console.log('Response body (raw):', responseText);
+    
+    let data;
+    try {
+      data = JSON.parse(responseText);
+      console.log('Response body (parsed):', JSON.stringify(data, null, 2));
+    } catch (e) {
+      console.error('Failed to parse JSON:', e);
+      data = {};
+    }
+    
+    if (data.sessionCookie) {
+      console.log('Found sessionCookie in response body:', data.sessionCookie);
+      cookies = data.sessionCookie;
+    }
     
     if (cookies) {
       cookieStore.set(idNumber, cookies);
     }
 
-    const data = await response.json();
     return { data, cookies };
   }
 
