@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     const proxy = new IDFProxy();
-    const url = 'https://home.idf.il/api/auth';
+    const url = 'https://rabaz.tempurl.co.il/api/auth';
     
     const headers: Record<string, string> = {
       'accept': 'application/json, text/plain, */*',
@@ -21,10 +21,10 @@ export async function POST(request: NextRequest) {
       'authorization': `Bearer ${body.token}`,
       'cache-control': 'no-cache',
       'content-type': 'application/json',
-      'origin': 'https://www.home.idf.il',
+      'origin': 'https://rabaz.tempurl.co.il/',
       'pragma': 'no-cache',
       'priority': 'u=1, i',
-      'referer': 'https://www.home.idf.il/',
+      'referer': 'https://rabaz.tempurl.co.il/',
       'sec-ch-ua': '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
       'sec-ch-ua-mobile': '?0',
       'sec-ch-ua-platform': '"Windows"',

@@ -1,5 +1,5 @@
 class IDFClient {
-  private baseUrl: string = "https://my.idf.il";
+  private baseUrl: string = "https://rabaz.tempurl.co.il/";
   private defaultHeaders: Record<string, string>;
 
   constructor() {
@@ -10,8 +10,8 @@ class IDFClient {
       'sec-ch-ua': '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
       'sec-ch-ua-mobile': '?0',
       'sec-ch-ua-platform': '"Windows"',
-      'Referer': 'https://my.idf.il/',
-      'origin': 'https://my.idf.il'
+      'Referer': 'https://rabaz.tempurl.co.il/',
+      'origin': 'https://rabaz.tempurl.co.il/'
     };
   }
 
