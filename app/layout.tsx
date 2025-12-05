@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'IDF Proxy Service',
-  description: 'Proxy service for IDF API',
+  title: 'IDF Authentication API',
+  description: 'IDF Authentication Service - API for user verification and SMS authentication',
 }
 
 export default function RootLayout({
@@ -11,7 +11,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="he" dir="rtl">
       <body>{children}</body>
     </html>
   )
