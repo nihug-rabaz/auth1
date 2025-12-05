@@ -31,28 +31,52 @@ class IDFProxy {
 
   private extractCookies(response: Response): string {
     const cookies: string[] = [];
-    const setCookieHeaders = response.headers.getSetCookie ? response.headers.getSetCookie() : [];
     
-    if (setCookieHeaders.length > 0) {
-      for (const cookieString of setCookieHeaders) {
-        const parts = cookieString.split(';');
-        if (parts.length > 0) {
-          cookies.push(parts[0].trim());
-        }
-      }
-    } else {
-      const setCookieHeader = response.headers.get('set-cookie');
-      if (setCookieHeader) {
-        const cookieStrings = setCookieHeader.includes(',') 
-          ? setCookieHeader.split(',') 
-          : [setCookieHeader];
-        for (const cookieString of cookieStrings) {
-          const parts = cookieString.split(';');
-          if (parts.length > 0) {
-            cookies.push(parts[0].trim());
+    try {
+      const setCookieHeaders = response.headers.getSetCookie ? response.headers.getSetCookie() : [];
+      
+      if (setCookieHeaders && setCookieHeaders.length > 0) {
+        for (const cookieString of setCookieHeaders) {
+          if (cookieString) {
+            const parts = cookieString.split(';');
+            if (parts.length > 0) {
+              cookies.push(parts[0].trim());
+            }
           }
         }
       }
+      
+      if (cookies.length === 0) {
+        const setCookieHeader = response.headers.get('set-cookie');
+        if (setCookieHeader) {
+          const cookieStrings = setCookieHeader.split(',').map(s => s.trim());
+          for (const cookieString of cookieStrings) {
+            if (cookieString) {
+              const parts = cookieString.split(';');
+              if (parts.length > 0) {
+                cookies.push(parts[0].trim());
+              }
+            }
+          }
+        }
+      }
+      
+      const allHeaders = Array.from(response.headers.entries());
+      for (const [key, value] of allHeaders) {
+        if (key.toLowerCase() === 'set-cookie' && !cookies.some(c => value.includes(c.split('=')[0]))) {
+          const cookieStrings = value.split(',').map(s => s.trim());
+          for (const cookieString of cookieStrings) {
+            if (cookieString) {
+              const parts = cookieString.split(';');
+              if (parts.length > 0) {
+                cookies.push(parts[0].trim());
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error extracting cookies:', error);
     }
     
     return cookies.join('; ');
@@ -102,11 +126,49 @@ class IDFProxy {
             }
             
             const responseHeaders = new Headers();
-            for (const [key, value] of Object.entries(response.headers)) {
-              if (Array.isArray(value)) {
-                value.forEach(v => responseHeaders.append(key, v));
-              } else {
-                responseHeaders.set(key, value);
+            const rawHeaders = response.headers as any;
+            
+            console.log('Undici response headers type:', typeof rawHeaders);
+            console.log('Undici response headers:', rawHeaders);
+            
+            if (rawHeaders) {
+              if (rawHeaders.raw && typeof rawHeaders.raw === 'object') {
+                for (const key in rawHeaders.raw) {
+                  const value = rawHeaders.raw[key];
+                  if (Array.isArray(value)) {
+                    value.forEach(v => responseHeaders.append(key, v));
+                  } else if (value !== null && value !== undefined) {
+                    responseHeaders.append(key, String(value));
+                  }
+                }
+              } else if (typeof rawHeaders === 'object') {
+                for (const key in rawHeaders) {
+                  const value = rawHeaders[key];
+                  const lowerKey = key.toLowerCase();
+                  if (lowerKey === 'set-cookie') {
+                    if (Array.isArray(value)) {
+                      value.forEach(v => responseHeaders.append('set-cookie', v));
+                    } else if (value !== null && value !== undefined) {
+                      responseHeaders.append('set-cookie', String(value));
+                    }
+                  } else {
+                    if (Array.isArray(value)) {
+                      value.forEach(v => responseHeaders.append(key, v));
+                    } else if (value !== null && value !== undefined) {
+                      responseHeaders.set(key, String(value));
+                    }
+                  }
+                }
+              }
+              
+              if (rawHeaders instanceof Headers) {
+                for (const [key, value] of rawHeaders.entries()) {
+                  if (key.toLowerCase() === 'set-cookie') {
+                    responseHeaders.append('set-cookie', value);
+                  } else {
+                    responseHeaders.set(key, value);
+                  }
+                }
               }
             }
             
@@ -116,6 +178,9 @@ class IDFProxy {
               statusText: response.statusText || '',
               headers: responseHeaders
             });
+            
+            console.log('Cloned response headers set-cookie:', clonedResponse.headers.get('set-cookie'));
+            console.log('Cloned response headers getSetCookie:', clonedResponse.headers.getSetCookie ? clonedResponse.headers.getSetCookie() : 'not available');
             
             return clonedResponse;
           } catch (fetchError: any) {
@@ -161,7 +226,12 @@ class IDFProxy {
       throw new Error(`HTTP error! status: ${response.status}, message: ${errorText.substring(0, 200)}`);
     }
 
+    console.log('Response headers keys:', Array.from(response.headers.keys()));
+    console.log('set-cookie header:', response.headers.get('set-cookie'));
+    console.log('getSetCookie:', response.headers.getSetCookie ? response.headers.getSetCookie() : 'not available');
+    
     const cookies = this.extractCookies(response);
+    console.log('Extracted cookies:', cookies);
     
     if (cookies) {
       cookieStore.set(idNumber, cookies);
