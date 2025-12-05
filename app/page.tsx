@@ -164,20 +164,41 @@ export default function Home() {
   console.error('Error:', error);
 });`;
 
-  const exampleCode2 = `fetch('${baseUrl}/api/idf/validate-code', {
+  const exampleCode2 = `// שלב 1: קבלת sessionCookie
+fetch('${baseUrl}/api/idf/users', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
-    idNumber: '123456782',
-    code: 'Ab123456',
-    sessionCookie: 'connect.sid=...'
+    idNumber: '123456782'
   })
 })
 .then(response => response.json())
 .then(data => {
+  console.log('Mobile Phone:', data.mobilePhone);
+  console.log('Session Cookie:', data.sessionCookie);
+  
+  // שלב 2: בדיקת קוד אימות עם ה-sessionCookie
+  return fetch('${baseUrl}/api/idf/validate-code', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      idNumber: '123456782',
+      code: 'Ab123456',
+      sessionCookie: data.sessionCookie
+    })
+  });
+})
+.then(response => response.json())
+.then(data => {
   console.log('Validation Result:', data);
+  if (data.isValid) {
+    console.log('Token:', data.token);
+    console.log('UPN:', data.upn);
+  }
 })
 .catch(error => {
   console.error('Error:', error);
@@ -187,7 +208,13 @@ export default function Home() {
   -H "Content-Type: application/json" \\
   -d '{"idNumber": "123456782"}'`;
 
-  const curlExample2 = `curl -X POST "${baseUrl}/api/idf/validate-code" \\
+  const curlExample2 = `# שלב 1: קבלת sessionCookie
+curl -X POST "${baseUrl}/api/idf/users" \\
+  -H "Content-Type: application/json" \\
+  -d '{"idNumber": "123456782"}'
+
+# שלב 2: בדיקת קוד אימות עם ה-sessionCookie
+curl -X POST "${baseUrl}/api/idf/validate-code" \\
   -H "Content-Type: application/json" \\
   -d '{
     "idNumber": "123456782",
